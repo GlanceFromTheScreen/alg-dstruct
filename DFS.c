@@ -33,17 +33,23 @@ void add_vertex(list* head, int place, int vertex)
 {
     if(NULL == head[place].next_vertexes)
     {
-        head[place].next_vertexes = (int*)malloc(sizeof(int));
-        assert(NULL != head[place].next_vertexes);
+        head[place].next_vertexes = (int*)malloc(sizeof(int) * 1024);
+        if (head[place] == NULL) {
+            exit(1);
+        }
         head[place].next_vertexes[0] = vertex;
         head[place].next_vertexes_amount++;
     }
     else
     {
         int* buff = NULL;
-        buff = (int *)realloc(head[place].next_vertexes, sizeof(int) * (head[place].next_vertexes_amount + 1));
-        assert(buff != NULL);
-        head[place].next_vertexes = buff;
+        if(head[place].next_vertexes_amount % 1024 == 0)
+        {
+            buff = (int *)realloc(head[place].next_vertexes, sizeof(int) * (head[place].next_vertexes_amount + 1024));
+            if(NULL == buff)
+                exit(2);
+            head[place].next_vertexes = buff;
+        }
         head[place].next_vertexes[head[place].next_vertexes_amount] = vertex;
         head[place].next_vertexes_amount++;
     }
