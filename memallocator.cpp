@@ -1,49 +1,43 @@
-#include "memallocator.h"
 #include <stdio.h>
+#include "memallocator.h"
 
-descript* s = NULL;  //  pointer to our memory, that can be given to user
-int absolute_size;
-int free_block;
 
-void put_is_free(descript* pointer, int size, int b)
+typedef struct descript
 {
-    int* f = (int*)((char*)pointer + sizeof(descript) + size);
-    *f = b;
-}
+    struct descript* next;
+    struct descript* prev;
+    int block_size;
+    char is_free;
+} descript;
 
-int check_is_free(descript* pointer)
-{
-    return *(int*)((char*)pointer + sizeof(descript) + (*pointer).block_size);
-}
+descript* s = nullptr;
+int full_size = 0;
 
-void* mem_init(void* pMemory, int size)
-{
+int meminit(void* pMemory, int size) {
     if (s != NULL || size < sizeof(descript) || pMemory == NULL)
-        return NULL;  //  not succeed
+        return 1;
 
     s = (descript*)pMemory;
 
-    (*s).block_size = size - sizeof(descript) - 4;
-    (*s).next = NULL;
-    (*s).prev = NULL;
-    put_is_free(s, size - sizeof(descript) - 4, (*s).block_size);
-    return 0;
-}
+    s->block_size = size - sizeof(descript);
+    s->next = NULL;
+    s->prev = NULL;
+    s->is_free = 1;
 
-void mem_init_finish()
-{
-    s = NULL;
+    full_size = size;
+
+    return 0;
 }
 
 void check_head()
 {
-    if(s != NULL)
+    if(s != nullptr)
     {
         printf("Own adress: %p\n", s);
         printf("Block size: %d\n", (*s).block_size);
         printf("Next: %p\n", (*s).next);
         printf("Previous: %p\n", (*s).prev);
-        printf("S Is Free: %d\n", check_is_free(s));
+        printf("S Is Free: %c\n", (*s).is_free);
         printf("\n");
     }
     else
@@ -60,132 +54,154 @@ descript* first_suit(int size)
 
     while (tmp != NULL)
     {
-        if (check_is_free(tmp) >= 0 && (*tmp).block_size >= size)
+        if (tmp->is_free == 1 && tmp->block_size >= size)
             break;
-
-        tmp = (*tmp).next;
+        tmp = tmp->next;
     }
+
     return tmp;
 }
 
-void* memalloc(int size)
-{
-
-    descript* tmp = first_suit(size);
-
-    if(tmp == NULL)
-    {
-        printf("TOO MUCH MEMORY REQUIRED\n\n");
+void* memalloc(int size) {
+    if (s == NULL)
         return NULL;
-    }
 
-    descript* check_s_tmp = tmp;
+    descript* found_block = first_suit(size);
 
-    int bs = (*tmp).block_size;
+    if (found_block == NULL)
+        return NULL;
 
-    if((*tmp).block_size - size > sizeof(descript) + 4)
+    if (s == NULL || found_block == NULL || found_block->is_free == 0)
+        return NULL;
+
+    if (found_block->block_size - size > sizeof(descript))
     {
-        descript* sn =  (*tmp).next;
-        descript* sp =(*tmp).prev;
+        descript* new_block = (descript*)((char*)(void*)((descript*)found_block + 1) + size);
 
-        (*tmp).block_size = size;
-        put_is_free(tmp, size, (-1)*(*tmp).block_size);
+        new_block->block_size = found_block->block_size - size - sizeof(descript);
+        new_block->is_free = 1;
+        new_block->next = found_block->next;
+        new_block->prev = found_block;
 
-        tmp = (descript*)((char*)tmp + size + sizeof(descript) + 4);
-        (*tmp).block_size = bs - size - sizeof(descript) - 4;
-        (*tmp).next = sn;
-        (*tmp).prev = sp;
+        if (found_block->next != NULL)
+            found_block->next->prev = new_block;
 
-        put_is_free(tmp, (*tmp).block_size, (*tmp).block_size);
-
-        if((*tmp).prev != NULL)
-            (*(*tmp).prev).next = tmp;
-
-        if((*tmp).next != NULL)
-            (*(*tmp).next).prev = tmp;
-
-        if(check_s_tmp == s)
-            s = tmp;
-
+        found_block->next = new_block;
     }
 
-    else if((*tmp).block_size - size <= sizeof(descript) + 4)
-    {
-        (*tmp).block_size = bs;
-        put_is_free(tmp, (*tmp).block_size, (-1)*(*tmp).block_size);
+    found_block->block_size = size;
+    found_block->is_free = 0;
 
-        if((*tmp).prev != NULL)
-            (*(*tmp).prev).next = (*tmp).next;
-
-        if((*tmp).next != NULL)
-            (*(*tmp).next).prev = (*tmp).prev;
-
-        tmp = tmp->next;
-        if(check_s_tmp == s)
-            s = tmp;
-    }
-
-    return (void*)((char*)check_s_tmp + sizeof(descript));  //  tmp - pointer to the descriptor. Returns pointer to the free space => p+size...
+    return (void*)((descript*)found_block + 1);
 }
 
-void mem_free(void* p)
+void memfree(void* p)
 {
     if (p == NULL)
         return;
 
-    descript* free_block = (descript*)((char*)p - sizeof(descript));
-    int left_block = *((int*)((char*)free_block - 4));
-    descript* r = (descript*)(((char*)free_block + sizeof(descript) + 4 + (*free_block).block_size));
-    int right_block = *(int*)((char*)r + sizeof(descript) + (*r).block_size);
+    descript* free_block = (descript*)p - 1;
 
-    if(left_block < 0 && right_block < 0)
+    if (free_block == NULL || free_block->is_free == 1)
+        return;
+
+    descript* buffer = free_block;
+    buffer->is_free = 1;
+
+    if (free_block->prev != NULL)
     {
-        descript* H = s;
-        s = free_block;
-        (*s).next = H;
-        if((*s).next != NULL)
-            (*s).next->prev = s;
-        put_is_free(s, (*s).block_size, (*s).block_size);
+        if (free_block->prev->is_free == 1)
+        {
+            int new_size = 0;
+
+            if (free_block->next != NULL)
+                new_size = (char*)free_block->next - (char*)(free_block->prev + 1);
+            else
+                new_size = (char*)(s + 1) + full_size - (char*)(free_block->prev + 1);
+
+            free_block->prev->next = free_block->next;
+
+            if (free_block->next != NULL)
+                free_block->next->prev = free_block->prev;
+
+            free_block->prev->block_size = new_size;
+            buffer = free_block->prev;
+        }
+    }
+
+    if (buffer->next != NULL)
+    {
+        if (buffer->next->is_free == 1)
+        {
+            int new_size = 0;
+
+            if (buffer->next->next != NULL)
+                new_size = (char*)buffer->next->next - (char*)(buffer + 1);
+            else
+                new_size = (char*)(s + 1) + full_size - (char*)(buffer + 1);
+
+            if (buffer->next->next != NULL)
+                buffer->next->next->prev = buffer;
+
+            buffer->next = buffer->next->next;
+            buffer->block_size = new_size;
+        }
+    }
+
+    if (buffer->next != NULL)
+    {
+        if (((char*)(buffer + 1) + buffer->block_size) != (char*)buffer->next)
+        {
+            void* leaked_ptr = (void*)((char*)(buffer + 1) + buffer->block_size);
+            int size = (char*)buffer->next - (char*)leaked_ptr;
+
+            buffer->block_size += size;
+        }
     }
     else
+    if (((char*)s + full_size) != ((char*)(buffer + 1) + buffer->block_size))
     {
-        if(right_block >= 0)
-        {
-            (*free_block).block_size += (*r).block_size + sizeof(descript) + 4;
-            if((*r).prev != NULL)
-                (*r).prev->next = free_block;
-            if((*r).next != NULL)
-                (*r).next->prev = free_block;
-            (*free_block).next = (*r).next;
-            (*free_block).prev = (*r).prev;
-            put_is_free(free_block, (*free_block).block_size,(*free_block).block_size);
+        void* leaked_ptr = (void*)((char*)(buffer + 1) + buffer->block_size);
+        int size = (char*)s + full_size - (char*)leaked_ptr;
 
-            if(r == s)
-            {
-                s = free_block;
-            }
-
-        }
-        if(left_block >= 0)
-        {
-            descript* L = (descript*)((char*)free_block - 4 - left_block - sizeof(descript));
-            //printf("%d\n", (*L).block_size);
-            (*L).block_size += sizeof(descript) + 4 + (*free_block).block_size;
-            put_is_free(L, (*L).block_size,(*L).block_size);
-
-
-            if(right_block >= 0)
-            {
-                (*L).next = (*L).next->next;
-            }
-
-            if(L == s)
-            {
-                s = L;
-            }
-
-
-        }
-
+        buffer->block_size += size;
     }
+}
+
+void memdone()
+{
+    int size = 0;
+
+    if (s == NULL)
+        return;
+
+    descript* block = s;
+
+    while (block != NULL)
+    {
+        if (block->is_free == 1)
+            size += block->block_size;
+
+        block = block->next;
+    }
+
+    size += sizeof(descript);
+
+    if (size < full_size)
+        fprintf(stderr, "Memory leak: \n\texpected %d\n\tcurrent %d\n", full_size, size);
+}
+
+void meminit_finish()
+{
+    s = NULL;
+}
+
+int memgetminimumsize()
+{
+    return sizeof(descript);
+}
+
+int memgetblocksize()
+{
+    return sizeof(descript);
 }

@@ -2,18 +2,18 @@
 #include "memallocator.h"
 #include <string.h>
 
-TEST(MEM_INIT, mem_init)
+TEST(MEMINIT, meminit)
 {
     void* space = malloc(10000);
     if(NULL == space)
         printf("Memory is not given");
-    mem_init(space, 10000);
+    meminit(space, 10000);
 
     EXPECT_EQ((*(descript*)space).block_size, 10000 - sizeof(descript) - 4);
     EXPECT_EQ((*(descript*)space).next, nullptr);
     EXPECT_EQ((*(descript*)space).prev, nullptr);
 
-    mem_init_finish();
+    meminit_finish();
 }
 
 TEST(FIRST_SUIT, first_suit)
@@ -21,7 +21,7 @@ TEST(FIRST_SUIT, first_suit)
     void* space = malloc(10000);
     if(NULL == space)
         printf("Memory is not given");
-    mem_init(space, 10000);
+    meminit(space, 10000);
 
     descript* t1 = first_suit(1234);
     EXPECT_EQ(space, t1);
@@ -30,7 +30,7 @@ TEST(FIRST_SUIT, first_suit)
     descript* t2 = first_suit(1234);
     EXPECT_EQ(space, (char*)t2 - 1234 - 28);
 
-    mem_init_finish();
+    meminit_finish();
 }
 
 TEST(MEM_ALLOC, memalloc)
@@ -38,7 +38,7 @@ TEST(MEM_ALLOC, memalloc)
     void* space = malloc(10000);
     if(NULL == space)
         printf("Memory is not given");
-    mem_init(space, 10000);
+    meminit(space, 10000);
 
     void* t1 = memalloc(50);
     EXPECT_EQ(space, (char*)t1 - sizeof(descript));
@@ -68,10 +68,10 @@ TEST(MEM_ALLOC, memalloc)
     void* t7 = memalloc(1500);
     EXPECT_EQ(t6, (char*)t7 - sizeof(descript) - 4 - 456);
 
-    mem_init_finish();
+    meminit_finish();
 }
 
-TEST(MEM_FREE, mem_free)
+TEST(MEMFREE, memfree)
 {
     void* space = malloc(10000);
     if(NULL == space)
@@ -102,6 +102,6 @@ TEST(MEM_FREE, mem_free)
     //  check if is_free changed
     EXPECT_EQ(*(int*)((char*)t2_1 + sizeof(descript) + (*t2_1).block_size), 32 + sizeof(descript) + 4 + 48 + sizeof(descript) + 4 + 64);
 
-    mem_init_finish();
+    meminit_finish();
 }
 
