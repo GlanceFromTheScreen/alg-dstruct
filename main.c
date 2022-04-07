@@ -31,7 +31,6 @@ tree* CreateTree(char* word)
 void AddVertex(tree* head, char* word)
 {
     tree* new_vertex = CreateTree(word);
-
     if (new_vertex == NULL)
         return;
     if (head == NULL)
